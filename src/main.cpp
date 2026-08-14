@@ -96,6 +96,22 @@ int main(int argc, char** argv)
                     header="Content-Type: text/plain\r\nContent-Length: " + std::to_string(agent.size()) + "\r\n" + header;
                     body=agent;
                 }
+                else if (arg=="files")
+                {
+                    std::string file=nextWord (ptr2, std::string(path), " \r\n:/");
+                    FILE *fptr;
+                    if ((fptr=fopen ((std::string(argv[2])+file).c_str(), "r"))!=NULL)
+                    {
+                        char buff[4096];
+                        while (fgets(buff, sizeof(buff), fptr))
+                            body+=std::string(buff);
+                        fclose(fptr);
+                        status = "HTTP/1.1 200 OK\r\n";
+                        header = "COntent-Type: application/octet-stream\r\nContent-Length: "+std::to_string(body.size())+"\r\n"+header;
+                    }
+                    else
+                        status = "HTTP/1.1 404 Not Found\r\n";
+                }
                 else
                     status = "HTTP/1.1 404 Not Found\r\n";
             }
