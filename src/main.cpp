@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <vector>
 #include <cstdlib>
 #include <string>
 #include <cstring>
@@ -8,6 +9,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <zlib.h>
 
 std::string nextWord(int& ptr, std::string input, const char* sep)
 {
@@ -35,6 +37,35 @@ std::string getBody (char *buff)
     }
     std::reverse (ret.begin(), ret.end());
     return ret;
+}
+std::vector<Bytef> encodeGzip (std::string input)
+{
+    uLong source_len = input.size();
+    uLong dest_len = compressBound(source_len);
+    z_stream stream{};
+    int result = deflateInit2 (&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15+16, 8, Z_DEFAULT_STRATEGY);
+    if (result==Z_OK)
+    {
+        std::vector<Bytef> compressed(1024);
+        stream.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(input.data()));
+        stream.avail_in = input.size();
+        stream.avail_out = compressed.size();
+        stream.next_out = compressed.data();
+        int ret = deflate(&stream, Z_FINISH);
+        if (ret==Z_STREAM_END)
+        {
+            compressed.resize (stream.total_out);
+            deflateEnd(&stream);
+            return compressed;
+        }
+        else
+        {
+            std::cerr << "Compression Failed";
+            exit (1);
+        }
+    }
+    std::cerr << "Compression failed";
+    exit(1);
 }
 int main(int argc, char** argv)
 {
@@ -93,6 +124,8 @@ int main(int argc, char** argv)
             std::string method = "";
             method = nextWord(ptr, std::string(buff), " ");
             std::string status = "", header = "\r\n", body = "", response = "";
+            bool encoded=0;
+            std::vector <Bytef> enc_bytes;
             if (method == "GET")
             {
                 for (int i = 1; i <= 1; i++)
@@ -107,8 +140,6 @@ int main(int argc, char** argv)
                     {
                         std::string word = nextWord(ptr2, path, "/ ");
                         status = "HTTP/1.1 200 OK\r\n";
-                        header = "Content-Type: text/plain\r\nContent-Length: " + std::to_string(word.size()) + "\r\n" +
-                            header;
                         std::string req_header = "";
                         while (ptr<nr_bytes)
                         {
@@ -121,12 +152,22 @@ int main(int argc, char** argv)
                                 {
                                     std::string encoding = nextWord (ptr3, encodings, ", \n\r");
                                     if (encoding=="gzip")
-                                        header="Content-Encoding: gzip\r\n"+header;
+                                        header="Content-Encoding: gzip\r\n"+header, encoded=1;
                                 }
                             }
                         }
-                        std::cout << header;
-                        body = word;
+                        if (!encoded)
+                        {
+                            body=word;
+                            header = "Content-Type: text/plain\r\nContent-Length: " + std::to_string(word.size()) + "\r\n" +
+                                header;
+                        }
+                        else
+                        {
+                            enc_bytes=encodeGzip(word);
+                            header = "Content-Type: text/plain\r\nContent-Length: " + std::to_string(enc_bytes.size()) + "\r\n" +
+                                header;
+                        }
                     }
                     else if (arg == "user-agent")
                     {
@@ -174,6 +215,8 @@ int main(int argc, char** argv)
             }
             response += status + header + body;
             write(client_fd, response.c_str(), response.size());
+            if (encoded)
+                write(client_fd, enc_bytes.data(), enc_bytes.size());
         }
         close(client_fd);
     }
