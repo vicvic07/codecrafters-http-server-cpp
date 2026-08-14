@@ -67,11 +67,25 @@ int main(int argc, char** argv)
     std::string path="";
     for (int i=1;i<=2;i++)
         path=nextWord (ptr, std::string(buff), " ");
-    std::string response="";
+    std::string status="", header="\r\n", body="", response="";
     if (path.size()==1)
-        response = "HTTP/1.1 200 OK\r\n\r\n";
+        status = "HTTP/1.1 200 OK\r\n\r\n";
     else
-        response = "HTTP/1.1 404 Not Found\r\n\r\n";
+    {
+        int ptr2=0;
+        std::string arg=nextWord (ptr2, std::string(path), "/");
+        if (arg=="echo")
+        {
+            std::string word=nextWord (ptr2, std::string(path), "/ ");
+            status="HTTP/1.1 200 OK\r\n";
+            header="Content-Type: text/plain\r\nContent-Length: " + std::to_string(word.size()) + "\r\n"+header;
+            body=word;
+        }
+        else
+            status = "HTTP/1.1 404 Not Found\r\n";
+    }
+
+    response+=status+header+body;
     write(client_fd, response.c_str(), response.size());
     close(client_fd);
     close(server_fd);
