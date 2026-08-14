@@ -42,10 +42,10 @@ std::vector<Bytef> encodeGzip (std::string input)
 {
     uLong source_len = input.size();
     z_stream stream{};
-    uLong dest_len = deflateBound(&stream, source_len);
     int result = deflateInit2 (&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15+16, 8, Z_DEFAULT_STRATEGY);
     if (result==Z_OK)
     {
+        uLong dest_len = deflateBound(&stream, source_len);
         std::vector<Bytef> compressed(dest_len);
         stream.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(input.data()));
         stream.avail_in = input.size();
