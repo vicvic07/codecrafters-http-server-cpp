@@ -109,6 +109,17 @@ int main(int argc, char** argv)
                         status = "HTTP/1.1 200 OK\r\n";
                         header = "Content-Type: text/plain\r\nContent-Length: " + std::to_string(word.size()) + "\r\n" +
                             header;
+                        std::string req_header = "";
+                        while (ptr<nr_bytes)
+                        {
+                            req_header = nextWord (ptr, std::string(buff), " :\r\n");
+                            if (req_header=="Accept-Encoding")
+                            {
+                                if (nextWord (ptr, std::string(buff), " :\r\n")=="gzip")
+                                    header="Content-Encoding: gzip\r\n"+header;
+                            }
+                        }
+                        std::cout << header;
                         body = word;
                     }
                     else if (arg == "user-agent")
