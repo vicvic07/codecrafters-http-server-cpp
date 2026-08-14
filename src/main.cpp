@@ -41,12 +41,12 @@ std::string getBody (char *buff)
 std::vector<Bytef> encodeGzip (std::string input)
 {
     uLong source_len = input.size();
-    uLong dest_len = compressBound(source_len);
     z_stream stream{};
+    uLong dest_len = deflateBound(&stream, source_len);
     int result = deflateInit2 (&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15+16, 8, Z_DEFAULT_STRATEGY);
     if (result==Z_OK)
     {
-        std::vector<Bytef> compressed(1024);
+        std::vector<Bytef> compressed(dest_len);
         stream.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(input.data()));
         stream.avail_in = input.size();
         stream.avail_out = compressed.size();
@@ -57,11 +57,6 @@ std::vector<Bytef> encodeGzip (std::string input)
             compressed.resize (stream.total_out);
             deflateEnd(&stream);
             return compressed;
-        }
-        else
-        {
-            std::cerr << "Compression Failed";
-            exit (1);
         }
     }
     std::cerr << "Compression failed";
