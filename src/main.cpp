@@ -54,51 +54,56 @@ int main(int argc, char** argv)
     struct sockaddr_in client_addr;
     int client_addr_len = sizeof(client_addr);
     std::cout << "Waiting for a client to connect...\n";
-    int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, (socklen_t*)&client_addr_len);
-    std::cout << "Client connected\n";
-    char buff[4096]={0};
-    ssize_t nr_bytes = read (client_fd, buff, sizeof(buff));
-    if (nr_bytes==-1)
+    while (true)
     {
-        std::cerr << "Read failed\n";
-        return 1;
-    }
-    int ptr=0;
-    std::string path="";
-    for (int i=1;i<=2;i++)
-        path=nextWord (ptr, std::string(buff), " ");
-    std::string status="", header="\r\n", body="", response="";
-    if (path.size()==1)
-        status = "HTTP/1.1 200 OK\r\n\r\n";
-    else
-    {
-        int ptr2=0;
-        std::string arg=nextWord (ptr2, std::string(path), "/");
-        if (arg=="echo")
+        int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, (socklen_t*)&client_addr_len);
+        pid_t pid = fork();
+        if (pid==0)
         {
-            std::string word=nextWord (ptr2, std::string(path), "/ ");
-            status="HTTP/1.1 200 OK\r\n";
-            header="Content-Type: text/plain\r\nContent-Length: " + std::to_string(word.size()) + "\r\n" + header;
-            body=word;
+            std::cout << "Client connected\n";
+            char buff[4096]={0};
+            ssize_t nr_bytes = read (client_fd, buff, sizeof(buff));
+            if (nr_bytes==-1)
+            {
+                std::cerr << "Read failed\n";
+                return 1;
+            }
+            int ptr=0;
+            std::string path="";
+            for (int i=1;i<=2;i++)
+                path=nextWord (ptr, std::string(buff), " ");
+            std::string status="", header="\r\n", body="", response="";
+            if (path.size()==1)
+                status = "HTTP/1.1 200 OK\r\n\r\n";
+            else
+            {
+                int ptr2=0;
+                std::string arg=nextWord (ptr2, std::string(path), "/");
+                if (arg=="echo")
+                {
+                    std::string word=nextWord (ptr2, std::string(path), "/ ");
+                    status="HTTP/1.1 200 OK\r\n";
+                    header="Content-Type: text/plain\r\nContent-Length: " + std::to_string(word.size()) + "\r\n" + header;
+                    body=word;
+                }
+                else if (arg=="user-agent")
+                {
+                    std::string word="", agent="";
+                    while (word!="User-Agent")
+                        word=nextWord (ptr, std::string(buff), " \r\n:");
+                    agent=nextWord (ptr, std::string(buff), " \r\n:");
+                    status="HTTP/1.1 200 OK\r\n";
+                    header="Content-Type: text/plain\r\nContent-Length: " + std::to_string(agent.size()) + "\r\n" + header;
+                    body=agent;
+                }
+                else
+                    status = "HTTP/1.1 404 Not Found\r\n";
+            }
+            response+=status+header+body;
+            write(client_fd, response.c_str(), response.size());
         }
-        else if (arg=="user-agent")
-        {
-            std::string word="", agent="";
-            while (word!="User-Agent")
-                word=nextWord (ptr, std::string(buff), " \r\n:");
-            agent=nextWord (ptr, std::string(buff), " \r\n:");
-            status="HTTP/1.1 200 OK\r\n";
-            header="Content-Type: text/plain\r\nContent-Length: " + std::to_string(agent.size()) + "\r\n" + header;
-            body=agent;
-        }
-        else
-            status = "HTTP/1.1 404 Not Found\r\n";
+        close(client_fd);
     }
-
-    response+=status+header+body;
-    write(client_fd, response.c_str(), response.size());
-    close(client_fd);
     close(server_fd);
-
     return 0;
 }
