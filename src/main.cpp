@@ -7,13 +7,32 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-std::string nextWord (int &ptr, std::string input, const char *sep)
+
+std::string nextWord(int& ptr, std::string input, const char* sep)
+{
+    std::string ret = "";
+    while (ptr < input.size() && strchr(sep, input[ptr]))
+        ++ptr;
+    while (ptr < input.size() && !strchr(sep, input[ptr]))
+        ret += input[ptr++];
+    return ret;
+}
+std::string getBody (char *buff)
 {
     std::string ret="";
-    while (ptr<input.size() && strchr (sep, input[ptr]))
-        ++ptr;
-    while (ptr<input.size() && !strchr (sep, input[ptr]))
-        ret+=input[ptr++];
+    int n=strlen(buff);
+    for (int i=n-1;i>=3;i--)
+    {
+        std::string is_CRLF;
+        for (int j=i-3;j<=i;j++)
+        {
+            is_CRLF+=buff[i];
+        }
+        if (is_CRLF=="\r\n\r\n")
+            break;
+        ret+=buff[i];
+    }
+    std::reverse (ret.begin(), ret.end());
     return ret;
 }
 int main(int argc, char** argv)
@@ -58,64 +77,83 @@ int main(int argc, char** argv)
     {
         int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, (socklen_t*)&client_addr_len);
         pid_t pid = fork();
-        if (pid==0)
+        if (pid == 0)
         {
             std::cout << "Client connected\n";
-            char buff[4096]={0};
-            ssize_t nr_bytes = read (client_fd, buff, sizeof(buff));
-            if (nr_bytes==-1)
+            char buff[4096] = {0};
+            ssize_t nr_bytes = read(client_fd, buff, sizeof(buff));
+            if (nr_bytes == -1)
             {
                 std::cerr << "Read failed\n";
                 return 1;
             }
-            int ptr=0;
-            std::string path="";
-            for (int i=1;i<=2;i++)
-                path=nextWord (ptr, std::string(buff), " ");
-            std::string status="", header="\r\n", body="", response="";
-            if (path.size()==1)
-                status = "HTTP/1.1 200 OK\r\n\r\n";
-            else
+            int ptr = 0;
+            std::string path = "";
+            std::string method = "";
+            method = nextWord(ptr, std::string(buff), " ");
+            std::string status = "", header = "\r\n", body = "", response = "";
+            if (method == "GET")
             {
-                int ptr2=0;
-                std::string arg=nextWord (ptr2, std::string(path), "/");
-                if (arg=="echo")
+                for (int i = 1; i <= 1; i++)
+                    path = nextWord(ptr, std::string(buff), " ");
+                if (path.size() == 1)
+                    status = "HTTP/1.1 200 OK\r\n\r\n";
+                else
                 {
-                    std::string word=nextWord (ptr2, std::string(path), "/ ");
-                    status="HTTP/1.1 200 OK\r\n";
-                    header="Content-Type: text/plain\r\nContent-Length: " + std::to_string(word.size()) + "\r\n" + header;
-                    body=word;
-                }
-                else if (arg=="user-agent")
-                {
-                    std::string word="", agent="";
-                    while (word!="User-Agent")
-                        word=nextWord (ptr, std::string(buff), " \r\n:");
-                    agent=nextWord (ptr, std::string(buff), " \r\n:");
-                    status="HTTP/1.1 200 OK\r\n";
-                    header="Content-Type: text/plain\r\nContent-Length: " + std::to_string(agent.size()) + "\r\n" + header;
-                    body=agent;
-                }
-                else if (arg=="files")
-                {
-                    std::string file=nextWord (ptr2, std::string(path), " \r\n:/");
-                    FILE *fptr;
-                    if ((fptr=fopen ((std::string(argv[2])+file).c_str(), "r"))!=NULL)
+                    int ptr2 = 0;
+                    std::string arg = nextWord(ptr2, path, "/");
+                    if (arg == "echo")
                     {
-                        char buff[4096];
-                        while (fgets(buff, sizeof(buff), fptr))
-                            body+=std::string(buff);
-                        fclose(fptr);
+                        std::string word = nextWord(ptr2, path, "/ ");
                         status = "HTTP/1.1 200 OK\r\n";
-                        header = "COntent-Type: application/octet-stream\r\nContent-Length: "+std::to_string(body.size())+"\r\n"+header;
+                        header = "Content-Type: text/plain\r\nContent-Length: " + std::to_string(word.size()) + "\r\n" +
+                            header;
+                        body = word;
+                    }
+                    else if (arg == "user-agent")
+                    {
+                        std::string word = "", agent = "";
+                        while (word != "User-Agent")
+                            word = nextWord(ptr, std::string(buff), " \r\n:");
+                        agent = nextWord(ptr, std::string(buff), " \r\n:");
+                        status = "HTTP/1.1 200 OK\r\n";
+                        header = "Content-Type: text/plain\r\nContent-Length: " + std::to_string(agent.size()) + "\r\n"
+                            + header;
+                        body = agent;
+                    }
+                    else if (arg == "files")
+                    {
+                        std::string file = nextWord(ptr2, path, " \r\n:/");
+                        FILE* fptr;
+                        if ((fptr = fopen((std::string(argv[2]) + file).c_str(), "r")) != NULL)
+                        {
+                            char buff[4096];
+                            while (fgets(buff, sizeof(buff), fptr))
+                                body += std::string(buff);
+                            fclose(fptr);
+                            status = "HTTP/1.1 200 OK\r\n";
+                            header = "Content-Type: application/octet-stream\r\nContent-Length: " +
+                                std::to_string(body.size()) + "\r\n" + header;
+                        }
+                        else
+                            status = "HTTP/1.1 404 Not Found\r\n";
                     }
                     else
                         status = "HTTP/1.1 404 Not Found\r\n";
                 }
-                else
-                    status = "HTTP/1.1 404 Not Found\r\n";
             }
-            response+=status+header+body;
+            else if (method=="POST")
+            {
+                std::string path = nextWord(ptr, std::string(buff), " ");
+                int ptr2=0;
+                std::string file = nextWord(ptr2, path, "/");
+                file = nextWord(ptr2, path, "/");
+                FILE *fptr=fopen((std::string(argv[2])+file).c_str(), "w");
+                fputs (getBody (buff).c_str(), fptr);
+                std::cout << getBody (buff) << "\n";
+                status = "HTTP/1.1 201 Created\r\n";
+            }
+            response += status + header + body;
             write(client_fd, response.c_str(), response.size());
         }
         close(client_fd);
