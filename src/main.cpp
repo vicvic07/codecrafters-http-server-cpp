@@ -7,7 +7,15 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-
+std::string nextWord (int &ptr, std::string input, const char *sep)
+{
+    std::string ret="";
+    while (ptr<input.size() && strchr (sep, input[ptr]))
+        ++ptr;
+    while (ptr<input.size() && !strchr (sep, input[ptr]))
+        ret+=input[ptr++];
+    return ret;
+}
 int main(int argc, char** argv)
 {
     // Flush after every std::cout / std::cerr
@@ -48,7 +56,22 @@ int main(int argc, char** argv)
     std::cout << "Waiting for a client to connect...\n";
     int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, (socklen_t*)&client_addr_len);
     std::cout << "Client connected\n";
-    std::string response = "HTTP/1.1 200 OK\r\n\r\n";
+    char buff[4096]={0};
+    ssize_t nr_bytes = read (client_fd, buff, sizeof(buff));
+    if (nr_bytes==-1)
+    {
+        std::cerr << "Read failed\n";
+        return 1;
+    }
+    int ptr=0;
+    std::string path="";
+    for (int i=1;i<=2;i++)
+        path=nextWord (ptr, std::string(buff), " ");
+    std::string response="";
+    if (path.size()==1)
+        response = "HTTP/1.1 200 OK\r\n\r\n";
+    else
+        response = "HTTP/1.1 404 Not Found\r\n\r\n";
     write(client_fd, response.c_str(), response.size());
     close(client_fd);
     close(server_fd);
