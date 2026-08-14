@@ -78,8 +78,18 @@ int main(int argc, char** argv)
         {
             std::string word=nextWord (ptr2, std::string(path), "/ ");
             status="HTTP/1.1 200 OK\r\n";
-            header="Content-Type: text/plain\r\nContent-Length: " + std::to_string(word.size()) + "\r\n"+header;
+            header="Content-Type: text/plain\r\nContent-Length: " + std::to_string(word.size()) + "\r\n" + header;
             body=word;
+        }
+        else if (arg=="user-agent")
+        {
+            std::string word="", agent="";
+            while (word!="User-Agent")
+                word=nextWord (ptr, std::string(buff), " \r\n:");
+            agent=nextWord (ptr, std::string(buff), " \r\n:");
+            status="HTTP/1.1 200 OK\r\n";
+            header="Content-Type: text/plain\r\nContent-Length: " + std::to_string(agent.size()) + "\r\n" + header;
+            body=agent;
         }
         else
             status = "HTTP/1.1 404 Not Found\r\n";
