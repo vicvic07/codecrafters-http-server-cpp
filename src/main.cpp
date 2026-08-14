@@ -115,11 +115,14 @@ int main(int argc, char** argv)
                             req_header = nextWord (ptr, std::string(buff), " :\r\n");
                             if (req_header=="Accept-Encoding")
                             {
-                                std::string encodings = nextWord (ptr, std::string(buff), " \n");
+                                std::string encodings = nextWord (ptr, std::string(buff), ":\n");
                                 int ptr3=0;
                                 while (ptr3<encodings.size())
-                                    if (nextWord (ptr3, encodings, ", ")=="gzip")
+                                {
+                                    std::string encoding = nextWord (ptr3, encodings, ", \n\r");
+                                    if (encoding=="gzip")
                                         header="Content-Encoding: gzip\r\n"+header;
+                                }
                             }
                         }
                         std::cout << header;
