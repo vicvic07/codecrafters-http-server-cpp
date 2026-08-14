@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <cstdlib>
 #include <string>
 #include <cstring>
@@ -26,7 +27,7 @@ std::string getBody (char *buff)
         std::string is_CRLF;
         for (int j=i-3;j<=i;j++)
         {
-            is_CRLF+=buff[i];
+            is_CRLF+=buff[j];
         }
         if (is_CRLF=="\r\n\r\n")
             break;
@@ -144,12 +145,13 @@ int main(int argc, char** argv)
             }
             else if (method=="POST")
             {
+                std::cout << "Posting...";
                 std::string path = nextWord(ptr, std::string(buff), " ");
                 int ptr2=0;
                 std::string file = nextWord(ptr2, path, "/");
                 file = nextWord(ptr2, path, "/");
-                FILE *fptr=fopen((std::string(argv[2])+file).c_str(), "w");
-                fputs (getBody (buff).c_str(), fptr);
+                std::fstream f ((std::string(argv[2])+file).c_str(), std::ios::out);
+                f << getBody (buff);
                 std::cout << getBody (buff) << "\n";
                 status = "HTTP/1.1 201 Created\r\n";
             }
