@@ -75,8 +75,9 @@ void getFile (std::string rel_path, std::string &status, std::string &header, st
     if ((f=fopen (std::string(website_dir+rel_path).c_str(), "r")))
     {
         char buff[4096];
-        while (fread (&buff, sizeof(buff[0]), sizeof(buff), f))
-            body+=std::string(buff);
+        ssize_t n;
+        while ((n=fread (&buff, sizeof(buff[0]), sizeof(buff), f)))
+            body.append (buff, n);
         fclose (f);
         std::string file_ext="";
         int ptr=rel_path.size()-1;
@@ -175,6 +176,7 @@ int main(int argc, char** argv)
                 std::vector<Bytef> enc_bytes;
                 if (method == "GET")
                 {
+                    std::cout << "Getting...\n";
                     path = nextWord(ptr, std::string(buff), " ");
                     if (path=="/")
                     {
@@ -237,7 +239,7 @@ int main(int argc, char** argv)
                             FILE* fptr;
                             if ((fptr = fopen((std::string(argv[2]) + file).c_str(), "r")) != NULL)
                             {
-                                char buff[4096];
+                                char buff[4096]={0};
                                 while (fgets(buff, sizeof(buff), fptr))
                                     body += std::string(buff);
                                 fclose(fptr);
@@ -256,7 +258,7 @@ int main(int argc, char** argv)
                 }
                 else if (method == "POST")
                 {
-                    std::cout << "Posting...";
+                    std::cout << "Posting...\n";
                     std::string path = nextWord(ptr, std::string(buff), " ");
                     int ptr2 = 0;
                     std::string file = nextWord(ptr2, path, "/");
@@ -284,7 +286,8 @@ int main(int argc, char** argv)
                 if (path=="/")
                     status="HTTP/1.1 200 OK\r\n";
                 response = status + header + body;
-                write(client_fd, response.c_str(), response.size());
+                ssize_t sent=write(client_fd, response.c_str(), response.size());
+                std::cout << "Wanted: " << response.size() << " " << "Sent: " << sent << "\n";
                 if (encoded)
                     write(client_fd, enc_bytes.data(), enc_bytes.size());
             }
