@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <zlib.h>
+#include <sys/wait.h>
 
 std::string nextWord(int& ptr, std::string input, const char* sep)
 {
@@ -64,14 +65,11 @@ std::vector<Bytef> encodeGzip(std::string input)
     std::cerr << "Compression failed";
     exit(1);
 }
-
 int main(int argc, char** argv)
 {
     // Flush after every std::cout / std::cerr
     std::cout << std::unitbuf;
     std::cerr << std::unitbuf;
-
-    // You can use print statements as follows for debugging, they'll be visible when running tests.
     std::cout << "Logs from your program will appear here!\n";
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0)
@@ -103,16 +101,18 @@ int main(int argc, char** argv)
     struct sockaddr_in client_addr;
     int client_addr_len = sizeof(client_addr);
     std::cout << "Waiting for a client to connect...\n";
-    int cnt=0;
+    int cnt=-1;
     while (true)
     {
         int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, (socklen_t*)&client_addr_len);
         pid_t pid = fork();
+        ++cnt;
         if (pid == 0)
         {
-            int crt=0;
-            std::cout << "Opened connection #" << (crt=++cnt) << "\n";
-            while (true)
+            int crt=cnt;
+            std::cout << "Opened connection #" << crt << "\n";
+            bool keep_alive=1;
+            while (keep_alive)
             {
                 std::cout << "Client connected\n";
                 char buff[4096] = {0};
@@ -134,7 +134,7 @@ int main(int argc, char** argv)
                     for (int i = 1; i <= 1; i++)
                         path = nextWord(ptr, std::string(buff), " ");
                     if (path.size() == 1)
-                        status = "HTTP/1.1 200 OK\r\n\r\n";
+                        status = "HTTP/1.1 200 OK\r\n";
                     else
                     {
                         int ptr2 = 0;
@@ -219,14 +219,31 @@ int main(int argc, char** argv)
                     std::cout << getBody(buff) << "\n";
                     status = "HTTP/1.1 201 Created\r\n";
                 }
-                response += status + header + body;
+                ptr=0;
+                while (ptr<nr_bytes)
+                {
+                    std::string word = nextWord (ptr, std::string(buff), " :/\r\n");
+                    if (word=="Connection")
+                    {
+                        std::string arg = nextWord(ptr, std::string(buff), " :\r\n");
+                        if (arg == "close")
+                        {
+                            header = "Connection: close\r\n"+header;
+                            keep_alive=0;
+                            break;
+                        }
+                    }
+                }
+                response = status + header + body;
                 write(client_fd, response.c_str(), response.size());
                 if (encoded)
                     write(client_fd, enc_bytes.data(), enc_bytes.size());
             }
             close (client_fd);
-            std::cout << "Closed connection" << crt << "\n";
+            std::cout << "Closed connection #" << crt << "\n";
+            _exit (0);
         }
+        close (client_fd);
     }
     close(server_fd);
     return 0;
