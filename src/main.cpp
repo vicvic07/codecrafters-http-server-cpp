@@ -240,8 +240,9 @@ int main(int argc, char** argv)
                             if ((fptr = fopen((std::string(argv[2]) + file).c_str(), "r")) != NULL)
                             {
                                 char buff[4096]={0};
-                                while (fgets(buff, sizeof(buff), fptr))
-                                    body += std::string(buff);
+                                ssize_t n=0;
+                                while ((n=fread(buff, sizeof(buff[0]), sizeof(buff), fptr)))
+                                    body.append (buff, n);
                                 fclose(fptr);
                                 status = "HTTP/1.1 200 OK\r\n";
                                 header = "Content-Type: application/octet-stream\r\nContent-Length: " +
@@ -295,8 +296,7 @@ int main(int argc, char** argv)
             std::cout << "Closed connection #" << crt << "\n";
             _exit (0);
         }
-        else
-            close (client_fd);
+        close (client_fd);
     }
     close(server_fd);
     return 0;
