@@ -8,10 +8,12 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <map>
 #include <netdb.h>
 #include <zlib.h>
 #include <sys/wait.h>
-
+const std::string website_dir="../website/";
+std::map <std::string, std::string> mime_type;
 std::string nextWord(int& ptr, std::string input, const char* sep)
 {
     std::string ret = "";
@@ -65,8 +67,50 @@ std::vector<Bytef> encodeGzip(std::string input)
     std::cerr << "Compression failed";
     exit(1);
 }
+void getFile (std::string rel_path, std::string &status, std::string &header, std::string &body)
+{
+    std::cout << rel_path << "\n";
+    status = "HTTP/1.1 200 OK\r\n";
+    FILE *f;
+    if ((f=fopen (std::string(website_dir+rel_path).c_str(), "r")))
+    {
+        char buff[4096];
+        while (fread (&buff, sizeof(buff[0]), sizeof(buff), f))
+            body+=std::string(buff);
+        fclose (f);
+        std::string file_ext="";
+        int ptr=rel_path.size()-1;
+        while (ptr>=0 && rel_path[ptr]!='.')
+            file_ext+=rel_path[ptr--];
+        file_ext+=".";
+        std::reverse (file_ext.begin(), file_ext.end());
+        header="Content-Type: " + mime_type[file_ext] + "\r\nContent-Length: " + std::to_string(body.size()) + "\r\n" + header;
+        std::cout << "OK\n";
+    }
+    else
+    {
+        status = "HTTP/1.1 404 Not Found\r\n";
+        std::cout << "File " << (website_dir+rel_path) << " not found!";
+    }
+}
+void mapMimeTypes()
+{
+    std::ifstream f ("../file-extension-to-mime-types.json");
+    std::string line;
+    while (getline (f, line))
+    {
+        if (line=="{" || line=="}")
+            continue;
+        int ptr=0;
+        std::string ext=nextWord (ptr, line, "\"\n\t\r: ,"), mime=nextWord (ptr, line, "\"\n\t\r: ,");
+        if (ext.empty() || mime.empty())
+            continue;
+        mime_type[ext]=mime;
+    }
+}
 int main(int argc, char** argv)
 {
+    mapMimeTypes();
     // Flush after every std::cout / std::cerr
     std::cout << std::unitbuf;
     std::cerr << std::unitbuf;
@@ -131,10 +175,11 @@ int main(int argc, char** argv)
                 std::vector<Bytef> enc_bytes;
                 if (method == "GET")
                 {
-                    for (int i = 1; i <= 1; i++)
-                        path = nextWord(ptr, std::string(buff), " ");
-                    if (path.size() == 1)
-                        status = "HTTP/1.1 200 OK\r\n";
+                    path = nextWord(ptr, std::string(buff), " ");
+                    if (path=="/")
+                    {
+                        getFile ("index.html", status, header, body);
+                    }
                     else
                     {
                         int ptr2 = 0;
@@ -204,7 +249,9 @@ int main(int argc, char** argv)
                                 status = "HTTP/1.1 404 Not Found\r\n";
                         }
                         else
-                            status = "HTTP/1.1 404 Not Found\r\n";
+                        {
+                            getFile (path, status, header, body);
+                        }
                     }
                 }
                 else if (method == "POST")
@@ -234,6 +281,8 @@ int main(int argc, char** argv)
                         }
                     }
                 }
+                if (path=="/")
+                    status="HTTP/1.1 200 OK\r\n";
                 response = status + header + body;
                 write(client_fd, response.c_str(), response.size());
                 if (encoded)
@@ -243,7 +292,8 @@ int main(int argc, char** argv)
             std::cout << "Closed connection #" << crt << "\n";
             _exit (0);
         }
-        close (client_fd);
+        else
+            close (client_fd);
     }
     close(server_fd);
     return 0;
